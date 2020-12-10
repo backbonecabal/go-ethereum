@@ -249,6 +249,7 @@ func init() {
 		compactCommand,
 		kafkaEventsCommand,
 		stateMigrateCommand,
+		repairStateCommand,
 		repairMigrationCommand,
 		repairFreezerIndexCommand,
 		diffBlocksCommand,
