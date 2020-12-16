@@ -917,7 +917,7 @@ func syncState(root common.Hash, srcDb state.Database, newDb ethdb.Database) <-c
 		codeQueue := append([]common.Hash{}, missingCodes...)
 		total := 0
 		for len(nodeQueue) + len(codeQueue) > 0 {
-			log.Info("Processing items", "completed", total, "known", sched.Pending(), "codeQueue", len(codeQueue), "nodeQueue", len("nodeQueue"))
+			log.Info("Processing items", "completed", total, "known", sched.Pending(), "codeQueue", len(codeQueue), "nodeQueue", len(nodeQueue))
 			var wg sync.WaitGroup
 			nodeCh := make(chan trieRequest, runtime.NumCPU())
 			codeCh := make(chan trieRequest, runtime.NumCPU())
