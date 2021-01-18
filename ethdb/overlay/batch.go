@@ -21,11 +21,10 @@ func (b *Batch) Reset() {
 func (b *Batch) Replay(w ethdb.KeyValueWriter) error {
 	switch w.(type) {
 	case *OverlayWrapperDB:
-		b.batch.Replay(w)
+		return b.batch.Replay(w)
 	default:
-		b.batch.Replay(&nonoverlayReplayer{db: w})
+		return b.batch.Replay(&nonoverlayReplayer{db: w})
 	}
-	return b.batch.Replay(w)
 }
 func (b *Batch) Put(key []byte, value []byte) error {
 	err := b.batch.Put(key, value)
