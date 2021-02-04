@@ -198,6 +198,7 @@ func (t *CDCTree) Update(blockRoot common.Hash, parentRoot common.Hash, destruct
     }
     counter++
   }
+  // TODO: Get code!
   for k, v := range accounts {
     messages[counter] = stateDeltaMessage{
       Key: append(append([]byte{byte(AccountMsg)}, blockRoot.Bytes()...), k.Bytes()...),
