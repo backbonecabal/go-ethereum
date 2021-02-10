@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"bytes"
 	"github.com/ethereum/go-ethereum/ethdb"
 )
 
@@ -18,7 +19,12 @@ func (b *Batch) Reset() {
 	b.batch.Reset()
 }
 func (b *Batch) Replay(w ethdb.KeyValueWriter) error {
-	return b.batch.Replay(w)
+	switch w.(type) {
+	case *OverlayWrapperDB:
+		return b.batch.Replay(w)
+	default:
+		return b.batch.Replay(&nonoverlayReplayer{db: w})
+	}
 }
 func (b *Batch) Put(key []byte, value []byte) error {
 	err := b.batch.Put(key, value)
@@ -33,4 +39,21 @@ func (b *Batch) Delete(key []byte) error {
 		return err
 	}
 	return b.batch.Put(deleted(key), []byte{})
+}
+
+type nonoverlayReplayer struct {
+	db ethdb.KeyValueWriter
+}
+
+func (r *nonoverlayReplayer) Put(key, value []byte) error {
+	if !bytes.HasPrefix(key, []byte("deleted/")) {
+		return r.db.Put(key, value)
+	}
+	return nil
+}
+func (r *nonoverlayReplayer) Delete(key []byte) error {
+	if !bytes.HasPrefix(key, []byte("deleted/")) {
+		return r.db.Delete(key)
+	}
+	return nil
 }
