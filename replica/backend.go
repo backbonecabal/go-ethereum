@@ -170,8 +170,9 @@ func (backend *ReplicaBackend) GetEVM(ctx context.Context, msg core.Message, sta
     return ctx.Err()
   }
 
-  context := core.NewEVMContext(msg, header, backend.bc, nil)
-  evm := vm.NewEVM(context, state, backend.chainConfig, *backend.bc.GetVMConfig())
+  txContext := core.NewEVMTxContext(msg)
+  evmContext := core.NewEVMBlockContext(header, backend.bc, nil)
+  evm := vm.NewEVM(evmContext, txContext, state, backend.chainConfig, *backend.bc.GetVMConfig())
   if backend.evmSemaphore != nil {
     backend.evmSemaphore <- struct{}{}
   }
