@@ -671,7 +671,7 @@ var (
 	KafkaLogTopicFlag = cli.StringFlag{
 		 Name: "kafka.topic",
 		 Usage: "Kafka broker hostname and port",
-		 Value: "geth", // TODO: Maybe the default could be based on the Ethereum network we connect to
+		 Value: "",
 	}
 	KafkaTransactionTopicFlag = cli.StringFlag{
 		 Name: "kafka.tx.topic",
@@ -686,6 +686,16 @@ var (
 	KafkaEventTopicFlag = cli.StringFlag{
 		 Name: "kafka.event.topic",
 		 Usage: "Kafka event topic name",
+		 Value: "",
+	}
+	KafkaStateDeltaTopicFlag = cli.StringFlag{
+		 Name: "kafka.statedelta.topic",
+		 Usage: "Kafka state delta topic name",
+		 Value: "",
+	}
+	StateDeltaFileFlag = cli.StringFlag{
+		 Name: "statedelta.file",
+		 Usage: "A file for storing compressed state deltas",
 		 Value: "",
 	}
 	KafkaTransactionConsumerGroupFlag = cli.StringFlag{

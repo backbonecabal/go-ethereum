@@ -167,6 +167,8 @@ var (
 		utils.KafkaTransactionPoolTopicFlag,
 		utils.KafkaTransactionTopicFlag,
 		utils.KafkaTransactionConsumerGroupFlag,
+		utils.KafkaStateDeltaTopicFlag,
+		utils.StateDeltaFileFlag,
 		utils.ReplicaSyncShutdownFlag,
 		utils.ReplicaStartupMaxAgeFlag,
 		utils.ReplicaRuntimeMaxOffsetAgeFlag,
@@ -248,9 +250,8 @@ func init() {
 		setHeadCommand,
 		verifyStateTrieCommand,
 		compactCommand,
-		kafkaEventsCommand,
 		stateMigrateCommand,
-		repairStateCommand,
+		// repairStateCommand,
 		repairMigrationCommand,
 		repairFreezerIndexCommand,
 		diffBlocksCommand,
@@ -470,7 +471,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 	}
 
 	// Start auxiliary services if enabled
-	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) || ctx.GlobalString(utils.KafkaTransactionPoolTopicFlag.Name) != "" || ctx.GlobalString(utils.KafkaEventTopicFlag.Name) != "" {
+	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) || ctx.GlobalString(utils.KafkaTransactionPoolTopicFlag.Name) != "" || ctx.GlobalString(utils.KafkaEventTopicFlag.Name) != "" || ctx.GlobalString(utils.KafkaStateDeltaTopicFlag.Name) != "" {
 		// Mining only makes sense if a full Ethereum node is running
 		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
 			utils.Fatalf("Light clients do not support mining")
@@ -516,6 +517,11 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 				}
 				log.Info("Starting Kafka event producer relay", "broker", brokerURL, "topic", eventTopic)
 				producer.RelayEvents(ethBackend)
+			}
+			if deltaTopic := ctx.GlobalString(utils.KafkaStateDeltaTopicFlag.Name); deltaTopic != "" {
+				if err := eth.TapSnaps(ethBackend, brokerURL, deltaTopic); err != nil {
+					utils.Fatalf("Failed to tap blockchain for state delta topics", "err", err)
+				}
 			}
 		} else {
 			log.Info("Broker url missing")

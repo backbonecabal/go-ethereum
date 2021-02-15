@@ -104,6 +104,9 @@ The dumpgenesis command dumps the genesis block configuration in JSON format to 
 			utils.MetricsInfluxDBPasswordFlag,
 			utils.MetricsInfluxDBTagsFlag,
 			utils.TxLookupLimitFlag,
+			utils.KafkaLogBrokerFlag,
+			utils.KafkaStateDeltaTopicFlag,
+			utils.StateDeltaFileFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -287,16 +290,16 @@ Compacts the database`,
      Description: `
 Migrates state from one leveldb to another`,
 	}
-	repairStateCommand = cli.Command{
-     Action:    utils.MigrateFlags(repairState),
-     Name:      "repairstate",
-     Usage:     "Uses the state of [src] to repair the state trie of [dst]",
-     Flags: []cli.Flag{
-     },
-     Category: "BLOCKCHAIN COMMANDS",
-     Description: `
-Repairs one state trie with one from another database`,
-	}
+// 	repairStateCommand = cli.Command{
+//      Action:    utils.MigrateFlags(repairState),
+//      Name:      "repairstate",
+//      Usage:     "Uses the state of [src] to repair the state trie of [dst]",
+//      Flags: []cli.Flag{
+//      },
+//      Category: "BLOCKCHAIN COMMANDS",
+//      Description: `
+// Repairs one state trie with one from another database`,
+// 	}
 	repairMigrationCommand = cli.Command{
      Action:    utils.MigrateFlags(repairMigration),
      Name:      "repairmigration",
@@ -438,6 +441,22 @@ func importChain(ctx *cli.Context) error {
 
 	chain, db := utils.MakeChain(ctx, stack, false)
 	defer db.Close()
+
+	if brokerURL := ctx.GlobalString(utils.KafkaLogBrokerFlag.Name); brokerURL != "" {
+		if deltaTopic := ctx.GlobalString(utils.KafkaStateDeltaTopicFlag.Name); deltaTopic != "" {
+			log.Info("Kafka broker:", "broker", brokerURL, "topic", deltaTopic)
+			if err := core.TapSnaps(chain, brokerURL, deltaTopic); err != nil {
+				return err
+			}
+		} else {
+			log.Info("Kafka broker:", "broker", brokerURL, "topic", "UNSET")
+		}
+	} else if stateDeltaFile := ctx.GlobalString(utils.StateDeltaFileFlag.Name); stateDeltaFile != "" {
+		log.Info("Writing state changes to file", "path", stateDeltaFile)
+		err, closer := core.TapSnapsFile(chain, stateDeltaFile)
+		if err != nil { return err }
+		defer closer()
+	}
 
 	// Start periodically gathering memory profiles
 	var peakMemAlloc, peakMemSys uint64
@@ -908,9 +927,7 @@ func syncState(root common.Hash, srcDb state.Database, newDb ethdb.Database) <-c
 	errCh := make(chan error)
 	go func() {
 		count := 10000
-		bloom := trie.NewSyncBloom(512, newDb)
-		defer bloom.Close()
-		sched := state.NewStateSync(root, newDb, bloom)
+		sched := state.NewStateSync(root, newDb, trie.NewSyncBloom(1, newDb))
 		log.Info("Syncing", "root", root)
 		missingNodes, _, missingCodes := sched.Missing(count)
 		nodeQueue := append([]common.Hash{}, missingNodes...)
@@ -1023,33 +1040,6 @@ func repairFreezerIndex(ctx *cli.Context) error {
 	return nil
 }
 
-func repairState(ctx *cli.Context) error {
-	if len(ctx.Args()) < 2 {
-    return fmt.Errorf("Usage: repairstate [oldLeveldb] [newLeveldb]")
-  }
-	oldDb, err := rawdb.NewLevelDBDatabase(ctx.Args()[0], 16, 16, "old")
-	if err != nil {
-		log.Crit("Error old opening database")
-		return err
-	}
-	newDb, err := rawdb.NewLevelDBDatabase(ctx.Args()[1], 16, 16, "new")
-	if err != nil {
-		log.Crit("Error new opening database")
-		return err
-	}
-	srcDb := state.NewDatabase(oldDb)
-	latestBlockHash := rawdb.ReadHeadBlockHash(newDb) // Find the latest blockhash migrated to the new database
-	if len(ctx.Args()) > 2 {
-		latestBlockHash = common.HexToHash(ctx.Args()[2])
-	}
-	if latestBlockHash == (common.Hash{}) {
-		return fmt.Errorf("Source block hash empty")
-	}
-	latestHeaderNumber := rawdb.ReadHeaderNumber(newDb, latestBlockHash)
-	latestBlock := rawdb.ReadBlock(newDb, latestBlockHash, *latestHeaderNumber)
-	return <-syncState(latestBlock.Root(), srcDb, newDb)
-}
-
 func migrateState(ctx *cli.Context) error {
 	if len(ctx.Args()) < 3 {
     return fmt.Errorf("Usage: migrateState [ancients] [oldLeveldb] [newLeveldb] [?kafkaTopic]")
@@ -1086,11 +1076,14 @@ func migrateState(ctx *cli.Context) error {
 	ancientErrCh := make(chan error, 1)
 	if os.Getenv("SKIP_INIT_FREEZER") != "true" {
 		go func() {
+			// Copy transaction / receipt lookup index entries
 			it := oldDb.NewIterator([]byte("l"), nil)
 			defer it.Release()
 			batch := newDb.NewBatch()
+			counter := 0
 			for it.Next() {
 				if len(it.Key()) != 1 + common.HashLength { continue } // avoid writing state trie nodes
+				counter++
 				if err := batch.Put(it.Key(), it.Value()); err != nil {
 					log.Error("Error initializing freezer", err.Error())
 					ancientErrCh <- err
@@ -1105,15 +1098,19 @@ func migrateState(ctx *cli.Context) error {
 					batch.Reset()
 				}
 			}
+			log.Info("Copied tx hash indexes to new db", "count", counter)
 			if err := it.Error(); err != nil {
 				log.Error("Error initializing freezer", err.Error())
 				ancientErrCh <- err
 				return
 			}
+			// Copy hash -> block number index
 			headerIt := oldDb.NewIterator([]byte("H"), nil)
 			defer headerIt.Release()
+			counter = 0
 			for headerIt.Next() {
 				if len(headerIt.Key()) != 1 + common.HashLength { continue } // avoid writing state trie nodes
+				counter++
 				if err := batch.Put(headerIt.Key(), headerIt.Value()); err != nil {
 					log.Error("Error initializing freezer", err.Error())
 					ancientErrCh <- err
@@ -1128,6 +1125,7 @@ func migrateState(ctx *cli.Context) error {
 					batch.Reset()
 				}
 			}
+			log.Info("Copied block hash indexes to new db", "count", counter)
 			if err := batch.Write(); err != nil {
 				log.Error("Error initializing freezer", err.Error())
 				ancientErrCh <- err
@@ -1138,13 +1136,44 @@ func migrateState(ctx *cli.Context) error {
 				ancientErrCh <- err
 				return
 			}
+			cliqueIt := oldDb.NewIterator([]byte("clique-"), nil)
+			defer cliqueIt.Release()
+			counter = 0
+			for cliqueIt.Next() {
+				if len(cliqueIt.Key()) != 7 + common.HashLength { continue } // avoid writing state trie nodes
+				counter++
+				if err := batch.Put(cliqueIt.Key(), cliqueIt.Value()); err != nil {
+					ancientErrCh <- err
+					return
+				}
+				if batch.ValueSize() > ethdb.IdealBatchSize {
+					if err := batch.Write(); err != nil {
+						ancientErrCh <- err
+						return
+					}
+					batch.Reset()
+				}
+			}
+			log.Info("Copied clique records to new db", "count", counter)
+			if err := batch.Write(); err != nil {
+				ancientErrCh <- err
+				return
+			}
+			if err := cliqueIt.Error(); err != nil {
+				ancientErrCh <- err
+				return
+			}
 			blockNo, err := newDb.Ancients()
 			if err != nil {
 				log.Error("Error initializing freezer", err.Error())
 				ancientErrCh <- err
 				return
 			}
-			hash := rawdb.ReadCanonicalHash(newDb, blockNo)
+			hash := rawdb.ReadCanonicalHash(newDb, blockNo - 1)
+			if hash == (common.Hash{}) {
+				ancientErrCh <- fmt.Errorf("Error retrieving hash for block %v from newdb", blockNo)
+				return
+			}
 
 			rawdb.WriteHeadHeaderHash(newDb, hash)
 			rawdb.WriteHeadFastBlockHash(newDb, hash)
