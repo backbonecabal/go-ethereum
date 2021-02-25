@@ -254,7 +254,7 @@ func (backend *ReplicaBackend) SendTx(ctx context.Context, signedTx *types.Trans
   }
 
   // Should supply enough intrinsic gas
-  gas, err := core.IntrinsicGas(signedTx.Data(), signedTx.To() == nil, true, backend.chainConfig.IsIstanbul(header.Number))
+  gas, err := core.IntrinsicGas(signedTx.Data(), signedTx.AccessList(), signedTx.To() == nil, true, backend.chainConfig.IsIstanbul(header.Number))
   if err != nil {
     return err
   }
@@ -594,6 +594,10 @@ func (backend *ReplicaBackend) findCommonAncestor(newHead, oldHead *types.Block)
   }
 }
 
+func (backend *ReplicaBackend) UnprotectedAllowed() bool {
+  return true
+}
+
 func (backend *ReplicaBackend) HeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Header, error) {
   if ctx != nil { if err := ctx.Err(); err != nil { return nil, err } }
   if num, ok := blockNrOrHash.Number(); ok {
@@ -634,7 +638,7 @@ func (backend *ReplicaBackend) initSnapshot() error {
   if err != nil {
     log.Warn("Snapshot init failed", "err", err)
   }
-  backend.snaps = snapshot.New(backend.db, trie.NewDatabase(backend.db), 256, header.Root, true, false)
+  backend.snaps, _ = snapshot.New(backend.db, trie.NewDatabase(backend.db), 256, header.Root, true, false, false)
   log.Info("Initialized snapshot", "snaps", backend.snaps)
   return err
 

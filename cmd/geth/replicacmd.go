@@ -67,7 +67,7 @@ system and acts as an RPC node based on the replicated data.
 			utils.HTTPPortFlag,
 			utils.HTTPCORSDomainFlag,
 			utils.HTTPVirtualHostsFlag,
-			utils.LegacyTestnetFlag,
+			utils.RopstenFlag,
 			utils.RinkebyFlag,
 			utils.GoerliFlag,
 			utils.KafkaLogBrokerFlag,
@@ -84,9 +84,9 @@ system and acts as an RPC node based on the replicated data.
 			utils.WSListenAddrFlag,
 			utils.WSPortFlag,
 			utils.WSAllowedOriginsFlag,
-			utils.LegacyWSListenAddrFlag,
-			utils.LegacyWSPortFlag,
-			utils.LegacyWSAllowedOriginsFlag,
+			// utils.LegacyWSListenAddrFlag,
+			// utils.LegacyWSPortFlag,
+			// utils.LegacyWSAllowedOriginsFlag,
 			utils.GraphQLEnabledFlag,
 			utils.GraphQLCORSDomainFlag,
 			utils.GraphQLVirtualHostsFlag,
@@ -168,7 +168,7 @@ func replica(ctx *cli.Context) error {
 	if err != nil { return err }
 	defer node.Close()
 
-	utils.StartNode(node)
+	utils.StartNode(ctx, node)
 	node.Wait()
 	return nil
 }
