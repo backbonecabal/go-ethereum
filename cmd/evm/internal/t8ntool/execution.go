@@ -144,8 +144,19 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		statedb.Prepare(tx.Hash(), blockHash, txIndex)
 		txContext := core.NewEVMTxContext(msg)
 		snapshot := statedb.Snapshot()
-		evm := vm.NewEVM(vmContext, txContext, statedb, chainConfig, vmConfig)
 
+		evm := vm.NewEVM(vmContext, txContext, statedb, chainConfig, vmConfig)
+		if chainConfig.IsBerlin(vmContext.BlockNumber) {
+			statedb.AddAddressToAccessList(msg.From())
+			if dst := msg.To(); dst != nil {
+				statedb.AddAddressToAccessList(*dst)
+				// If it's a create-tx, the destination will be added inside evm.create
+			}
+			for _, addr := range evm.ActivePrecompiles() {
+				statedb.AddAddressToAccessList(addr)
+			}
+		}
+		snapshot := statedb.Snapshot()
 		// (ret []byte, usedGas uint64, failed bool, err error)
 		msgResult, err := core.ApplyMessage(evm, msg, gaspool)
 		if err != nil {
