@@ -65,6 +65,7 @@ func setDefaults(cfg *Config) {
 			PetersburgBlock:     new(big.Int),
 			IstanbulBlock:       new(big.Int),
 			MuirGlacierBlock:    new(big.Int),
+			BerlinBlock:         new(big.Int),
 			YoloV3Block:         nil,
 		}
 	}
@@ -113,7 +114,7 @@ func Execute(code, input []byte, cfg *Config) ([]byte, *state.StateDB, error) {
 		vmenv   = NewEnv(cfg)
 		sender  = vm.AccountRef(cfg.Origin)
 	)
-	if cfg.ChainConfig.IsYoloV3(vmenv.Context.BlockNumber) {
+	if cfg.ChainConfig.IsBerlin(vmenv.Context.BlockNumber) || cfg.ChainConfig.IsYoloV3(vmenv.Context.BlockNumber) {
 		cfg.State.AddAddressToAccessList(cfg.Origin)
 		cfg.State.AddAddressToAccessList(address)
 		for _, addr := range vmenv.ActivePrecompiles() {
@@ -149,7 +150,7 @@ func Create(input []byte, cfg *Config) ([]byte, common.Address, uint64, error) {
 		vmenv  = NewEnv(cfg)
 		sender = vm.AccountRef(cfg.Origin)
 	)
-	if cfg.ChainConfig.IsYoloV3(vmenv.Context.BlockNumber) {
+	if cfg.ChainConfig.IsBerlin(vmenv.Context.BlockNumber) || cfg.ChainConfig.IsYoloV3(vmenv.Context.BlockNumber) {
 		cfg.State.AddAddressToAccessList(cfg.Origin)
 		for _, addr := range vmenv.ActivePrecompiles() {
 			cfg.State.AddAddressToAccessList(addr)
@@ -177,7 +178,7 @@ func Call(address common.Address, input []byte, cfg *Config) ([]byte, uint64, er
 	vmenv := NewEnv(cfg)
 
 	sender := cfg.State.GetOrNewStateObject(cfg.Origin)
-	if cfg.ChainConfig.IsYoloV3(vmenv.Context.BlockNumber) {
+	if cfg.ChainConfig.IsBerlin(vmenv.Context.BlockNumber) || cfg.ChainConfig.IsYoloV3(vmenv.Context.BlockNumber) {
 		cfg.State.AddAddressToAccessList(cfg.Origin)
 		cfg.State.AddAddressToAccessList(address)
 		for _, addr := range vmenv.ActivePrecompiles() {
