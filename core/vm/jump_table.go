@@ -57,21 +57,10 @@ var (
 	constantinopleInstructionSet   = newConstantinopleInstructionSet()
 	istanbulInstructionSet         = newIstanbulInstructionSet()
 	berlinInstructionSet           = newBerlinInstructionSet()
-	yoloV3InstructionSet           = newYoloV3InstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]*operation
-
-// newYoloV3InstructionSet creates an instructionset containing
-// - "EIP-2315: Simple Subroutines"
-// - "EIP-2929: Gas cost increases for state access opcodes"
-func newYoloV3InstructionSet() JumpTable {
-	instructionSet := newIstanbulInstructionSet()
-	enable2315(&instructionSet) // Subroutines - https://eips.ethereum.org/EIPS/eip-2315
-	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
-	return instructionSet
-}
 
 // newBerlinInstructionSet returns the frontier, homestead, byzantium,
 // contantinople, istanbul, petersburg and berlin instructions.

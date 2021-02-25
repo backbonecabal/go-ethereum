@@ -437,12 +437,7 @@ func (c *ChainConfig) IsIstanbul(num *big.Int) bool {
 
 // IsBerlin returns whether num is either equal to the Berlin fork block or greater.
 func (c *ChainConfig) IsBerlin(num *big.Int) bool {
-	return isForked(c.BerlinBlock, num)
-}
-
-// IsYoloV3 returns whether num is either equal to the YoloV3 fork block or greater.
-func (c *ChainConfig) IsYoloV3(num *big.Int) bool {
-	return isForked(c.YoloV3Block, num)
+	return isForked(c.BerlinBlock, num) || isForked(c.YoloV3Block, num)
 }
 
 // IsEWASM returns whether num represents a block number after the EWASM fork
@@ -629,7 +624,7 @@ type Rules struct {
 	ChainID                                                 *big.Int
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
-	IsBerlin, IsYoloV3                                      bool
+	IsBerlin                                                bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -649,6 +644,5 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsPetersburg:     c.IsPetersburg(num),
 		IsIstanbul:       c.IsIstanbul(num),
 		IsBerlin:         c.IsBerlin(num),
-		IsYoloV3:         c.IsYoloV3(num),
 	}
 }
