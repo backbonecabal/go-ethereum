@@ -850,7 +850,7 @@ func (consumer *KafkaEventConsumer) Start() {
 }
 
 
-func NewKafkaEventConsumerFromURLs(brokerURL, topic string, lastEmittedBlock common.Hash, offsets map[int32]int64) (EventConsumer, error) {
+func NewKafkaEventConsumerFromURLs(brokerURL, topic string, lastEmittedBlock common.Hash, offsets map[int32]int64, rollback int64) (EventConsumer, error) {
   brokers, config := cdc.ParseKafkaURL(brokerURL)
   if err := cdc.CreateTopicIfDoesNotExist(brokerURL, topic, -1, nil); err != nil {
     return nil, err
@@ -873,13 +873,13 @@ func NewKafkaEventConsumerFromURLs(brokerURL, topic string, lastEmittedBlock com
       offset = sarama.OffsetOldest
       startOffset = offset
     } else {
-      startOffset = offset - 5000
+      startOffset = offset - rollback
     }
     startingOffsets[part] = startOffset
     pc, err := consumer.ConsumePartition(topic, part, startOffset)
     if err != nil {
-      // We may not have been able to roll back 5000 messages, so just try with
-      // the provided offset
+      // We may not have been able to roll back `rollback` messages, so just
+      // try with the provided offset
       startingOffsets[part] = offset
       pc, err = consumer.ConsumePartition(topic, part, offset)
       if err != nil { return nil, err }
