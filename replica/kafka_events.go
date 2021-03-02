@@ -819,31 +819,58 @@ func (consumer *KafkaEventConsumer) Start() {
       }
     }(&readyWg, &warmupWg, partitionConsumer, i)
   }
+  var readych chan time.Time
+  readyWaiter := func() <-chan time.Time  {
+    // If readych isn't ready to receive, use it as the sender, eliminating any
+    // possibility that this case will trigger, and avoiding the creation of
+    // any timer objects that will have to get cleaned up when we don't need
+    // them.
+    if readych == nil { return readych }
+    // Only if the readych is ready to receive should this return a timer, as
+    // the timer will have to be created, run its course, and get cleaned up,
+    // which adds overhead
+    return time.After(time.Second)
+  }
+
   go func(wg *sync.WaitGroup) {
     // Wait until all partition consumers are up to the high water mark and alert the ready channel
     wg.Wait()
+    readych = make(chan time.Time)
+    <-readych
+    readych = nil
     consumer.ready <- struct{}{}
     consumer.ready = nil
     dl.Close()
   }(&readyWg)
   go func() {
     initialLEB := consumer.cet.lastEmittedBlock
-    for input := range messages {
-      // log.Debug("Handling message", "offset", input.Offset, "partition", input.Partition, "starting", consumer.startingOffsets[input.Partition])
-      chainEvents, err := consumer.cet.HandleMessage(input.Key, input.Value, input.Partition, input.Offset)
-      if input.Offset < consumer.startingOffsets[input.Partition] {
-        log.Debug("Offset < starting offset", "offset", input.Offset, "starting", consumer.startingOffsets[input.Partition])
-        // If input.Offset < partition.StartingOffset, we're just populating
-        // the CET, so we don't need to emit this or worry about errors
-        consumer.cet.lastEmittedBlock = initialLEB // Set lastEmittedBlock back so it won't get hung up if it doesn't have the whole next block
-        continue
-      }
-      if err != nil {
-        log.Error("Error processing input:", "err", err, "key", input.Key, "msg", input.Value, "part", input.Partition, "offset", input.Offset)
-        continue
-      }
-      if chainEvents != nil {
-        consumer.feed.Send(chainEvents)
+    for {
+      select {
+      case input, ok := <-messages:
+        if !ok { return }
+        // log.Debug("Handling message", "offset", input.Offset, "partition", input.Partition, "starting", consumer.startingOffsets[input.Partition])
+        chainEvents, err := consumer.cet.HandleMessage(input.Key, input.Value, input.Partition, input.Offset)
+        if input.Offset < consumer.startingOffsets[input.Partition] {
+          log.Debug("Offset < starting offset", "offset", input.Offset, "starting", consumer.startingOffsets[input.Partition])
+          // If input.Offset < partition.StartingOffset, we're just populating
+          // the CET, so we don't need to emit this or worry about errors
+          consumer.cet.lastEmittedBlock = initialLEB // Set lastEmittedBlock back so it won't get hung up if it doesn't have the whole next block
+          continue
+        }
+        if err != nil {
+          log.Error("Error processing input:", "err", err, "key", input.Key, "msg", input.Value, "part", input.Partition, "offset", input.Offset)
+          continue
+        }
+        if chainEvents != nil {
+          consumer.feed.Send(chainEvents)
+        }
+      case readych <-<- readyWaiter():
+        // readyWaiter() will wait 1 second if readych is ready to receive ,
+        // which will trigger a message to get sent on consumer.ready. This
+        // should only trigger when we are totally caught up processing all the
+        // messages currently available from Kafka. Before we reach the high
+        // watermark and after this has triggered once, readyWaiter() will be a
+        // nil channel with no significant resource consumption.
       }
     }
   }()
