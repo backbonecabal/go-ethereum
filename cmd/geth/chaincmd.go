@@ -929,22 +929,31 @@ func syncState(root common.Hash, srcDb state.Database, newDb ethdb.Database) <-c
 		count := 10000
 		sched := state.NewStateSync(root, newDb, trie.NewSyncBloom(1, newDb))
 		log.Info("Syncing", "root", root)
-		missingNodes, _, _ := sched.Missing(count)
-		queue := append([]common.Hash{}, missingNodes...)
+		missingNodes, _, missingCodes := sched.Missing(count)
+		nodeQueue := append([]common.Hash{}, missingNodes...)
+		codeQueue := append([]common.Hash{}, missingCodes...)
 		total := 0
-		for len(queue) > 0 {
-			log.Info("Processing items", "completed", total, "known", sched.Pending())
+		for len(nodeQueue) + len(codeQueue) > 0 {
+			log.Info("Processing items", "completed", total, "known", sched.Pending(), "codeQueue", len(codeQueue), "nodeQueue", len(nodeQueue))
 			var wg sync.WaitGroup
-			ch := make(chan trieRequest, runtime.NumCPU())
+			nodeCh := make(chan trieRequest, runtime.NumCPU())
+			codeCh := make(chan trieRequest, runtime.NumCPU())
 			popCh := make(chan trieRequest, runtime.NumCPU())
 			for i := 0; i < runtime.NumCPU(); i++ {
 				wg.Add(1)
 				go func(wg *sync.WaitGroup) {
 					defer wg.Done()
-					for r := range ch {
+					for r := range nodeCh {
 						r.data, r.err = srcDb.TrieDB().Node(r.hash)
 						if r.err != nil {
-							log.Warn("Error processing hash", "hash", r.hash, "err", r.err)
+							log.Warn("Error processing node hash", "hash", r.hash, "err", r.err)
+						}
+						popCh <- r
+					}
+					for r := range codeCh {
+						r.data, r.err = srcDb.ContractCode(common.Hash{}, r.hash)
+						if r.err != nil {
+							log.Warn("Error processing code hash", "hash", r.hash, "err", r.err)
 						}
 						popCh <- r
 					}
@@ -955,10 +964,14 @@ func syncState(root common.Hash, srcDb state.Database, newDb ethdb.Database) <-c
 				close(popCh)
 			}(&wg)
 			go func() {
-				for i, hash := range queue {
-					ch <- trieRequest{hash: hash, i: i}
+				for i, hash := range nodeQueue {
+					nodeCh <- trieRequest{hash: hash, i: i}
 				}
-				close(ch)
+				close(nodeCh)
+				for i, hash := range codeQueue {
+					codeCh <- trieRequest{hash: hash, i: i}
+				}
+				close(codeCh)
 			}()
 			for r := range popCh {
 				if r.err != nil {
@@ -979,10 +992,12 @@ func syncState(root common.Hash, srcDb state.Database, newDb ethdb.Database) <-c
 				return
 			}
 			batch.Write()
-			total += len(queue)
-			missingNodes, _, _ := sched.Missing(count)
-			queue = append(queue[:0], missingNodes...)
+			total += len(nodeQueue) + len(codeQueue)
+			missingNodes, _, missingCodes := sched.Missing(count)
+			nodeQueue = append(nodeQueue[:0], missingNodes...)
+			codeQueue = append(codeQueue[:0], missingCodes...)
 		}
+		log.Info("Done processing items", "completed", total, "known", sched.Pending(), "root", root)
 		errCh <- nil
 	}()
 
@@ -1070,11 +1085,13 @@ func migrateState(ctx *cli.Context) error {
 				if len(it.Key()) != 1 + common.HashLength { continue } // avoid writing state trie nodes
 				counter++
 				if err := batch.Put(it.Key(), it.Value()); err != nil {
+					log.Error("Error initializing freezer", err.Error())
 					ancientErrCh <- err
 					return
 				}
 				if batch.ValueSize() > ethdb.IdealBatchSize {
 					if err := batch.Write(); err != nil {
+						log.Error("Error initializing freezer", err.Error())
 						ancientErrCh <- err
 						return
 					}
@@ -1083,6 +1100,7 @@ func migrateState(ctx *cli.Context) error {
 			}
 			log.Info("Copied tx hash indexes to new db", "count", counter)
 			if err := it.Error(); err != nil {
+				log.Error("Error initializing freezer", err.Error())
 				ancientErrCh <- err
 				return
 			}
@@ -1094,11 +1112,13 @@ func migrateState(ctx *cli.Context) error {
 				if len(headerIt.Key()) != 1 + common.HashLength { continue } // avoid writing state trie nodes
 				counter++
 				if err := batch.Put(headerIt.Key(), headerIt.Value()); err != nil {
+					log.Error("Error initializing freezer", err.Error())
 					ancientErrCh <- err
 					return
 				}
 				if batch.ValueSize() > ethdb.IdealBatchSize {
 					if err := batch.Write(); err != nil {
+						log.Error("Error initializing freezer", err.Error())
 						ancientErrCh <- err
 						return
 					}
@@ -1107,10 +1127,12 @@ func migrateState(ctx *cli.Context) error {
 			}
 			log.Info("Copied block hash indexes to new db", "count", counter)
 			if err := batch.Write(); err != nil {
+				log.Error("Error initializing freezer", err.Error())
 				ancientErrCh <- err
 				return
 			}
 			if err := headerIt.Error(); err != nil {
+				log.Error("Error initializing freezer", err.Error())
 				ancientErrCh <- err
 				return
 			}
@@ -1143,6 +1165,7 @@ func migrateState(ctx *cli.Context) error {
 			}
 			blockNo, err := newDb.Ancients()
 			if err != nil {
+				log.Error("Error initializing freezer", err.Error())
 				ancientErrCh <- err
 				return
 			}
@@ -1181,7 +1204,7 @@ func migrateState(ctx *cli.Context) error {
 
 	log.Info("Syncing genesis block state", "hash", block.Hash(), "root", block.Root())
 	genesisErrCh := syncState(block.Root(), srcDb, newDb)
-	log.Info("Syncing latest block state", "hash", latestBlock.Hash(), "root", latestBlock.Root())
+	log.Info("Syncing latest block state", "hash", latestBlock.Hash(), "root", latestBlock.Root(), "number", latestBlock.NumberU64())
 	latestErrCh := syncState(latestBlock.Root(), srcDb, newDb)
 
 	chainConfig := rawdb.ReadChainConfig(oldDb, block.Hash())

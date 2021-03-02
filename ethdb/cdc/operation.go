@@ -170,6 +170,10 @@ func logAndSleep(value []byte, timestamp time.Time, offset int64) {
 func (op *Operation) Apply(db ethdb.Database) ([]byte, error) {
   betweenTime += time.Since(lastApply)
   applyStart := time.Now()
+  defer func() {
+    applyTime += time.Since(applyStart)
+    lastApply = time.Now()
+  }()
   lastBlockWrites++
   switch op.Op {
   case OpPut:
@@ -241,16 +245,12 @@ func (op *Operation) Apply(db ethdb.Database) ([]byte, error) {
       }
 
     }
-    applyTime += time.Since(applyStart)
-    lastApply = time.Now()
     return headHash, batch.Write()
   case OpHeartbeat:
     return nil, updateOffset(db, op)
   default:
     fmt.Printf("Unknown operation: %v \n", op)
   }
-  applyTime += time.Since(applyStart)
-  lastApply = time.Now()
   return nil, nil
 }
 

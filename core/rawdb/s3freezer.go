@@ -251,6 +251,11 @@ func (f *s3freezer) TruncateAncients(n uint64) error {
 
 // Sync is a no-op, as we will write content as AppendAncient is called
 func (f *s3freezer) Sync() error {
+  defer func() {
+    if err := recover(); err != nil {
+      log.Warn("s3freezer.Sync() issue", "err", err)
+    }
+  }()
   f.wg.Wait()
   return nil
 }
