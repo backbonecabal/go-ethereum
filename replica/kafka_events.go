@@ -864,13 +864,17 @@ func (consumer *KafkaEventConsumer) Start() {
         if chainEvents != nil {
           consumer.feed.Send(chainEvents)
         }
-      case readych <-<- readyWaiter():
+      case v := <- readyWaiter():
         // readyWaiter() will wait 1 second if readych is ready to receive ,
         // which will trigger a message to get sent on consumer.ready. This
         // should only trigger when we are totally caught up processing all the
         // messages currently available from Kafka. Before we reach the high
         // watermark and after this has triggered once, readyWaiter() will be a
         // nil channel with no significant resource consumption.
+        select {
+        case readych <- v:
+        default:
+        }
       }
     }
   }()
