@@ -585,10 +585,6 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 			chainConfig.BerlinBlock = berlin
 			canon = false
 		}
-		if yolov3 := config.LogConfig.Overrides.YoloV3Block; yolov3 != nil {
-			chainConfig.YoloV3Block = yolov3
-			canon = false
-		}
 	}
 	for i, tx := range block.Transactions() {
 		// Prepare the trasaction for un-traced execution
