@@ -198,9 +198,10 @@ func TestStateAndHeaderByNumber(t *testing.T) {
   if header.Number.Int64() != 0 {
     t.Errorf("Unexpected header number: %v", header.Number)
   }
-  if err := state.Reset(header.Root); err != nil {
-    t.Errorf(err.Error())
-  }
+  state.TxIndex()
+  // if err := state.Reset(header.Root); err != nil {
+  //   t.Errorf(err.Error())
+  // }
 }
 
 func TestStateAndHeaderByNumberErr(t *testing.T) {
@@ -273,7 +274,7 @@ func TestGetEVM(t *testing.T) {
   if err != nil {
     t.Fatalf(err.Error())
   }
-  msg := types.NewMessage(common.Address{}, &common.Address{}, 0, new(big.Int), 0, new(big.Int), []byte{}, false)
+  msg := types.NewMessage(common.Address{}, &common.Address{}, 0, new(big.Int), 0, new(big.Int), []byte{}, types.AccessList{}, false)
   state, header, err := backend.StateAndHeaderByNumber(context.Background(), rpc.EarliestBlockNumber)
   if err != nil {
     t.Fatalf(err.Error())
@@ -420,7 +421,7 @@ func TestPublicFilterAPI(t *testing.T) {
   if err != nil {
     t.Fatalf(err.Error())
   }
-  filterAPI := filters.NewPublicFilterAPI(backend, false)
+  filterAPI := filters.NewPublicFilterAPI(backend, false, time.Second)
   header, err := backend.HeaderByNumber(context.Background(), rpc.EarliestBlockNumber)
   if err != nil {
     t.Fatalf(err.Error())
