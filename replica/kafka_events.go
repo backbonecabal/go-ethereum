@@ -797,6 +797,7 @@ func (consumer *KafkaEventConsumer) Start() {
     warmupWg.Add(1)
     dl.Add(i)
     go func(readyWg, warmupWg *sync.WaitGroup, partitionConsumer sarama.PartitionConsumer, i int) {
+      var once sync.Once
       warm := false
       for input := range partitionConsumer.Messages() {
         if !warm && input.Offset >= consumer.startingOffsets[input.Partition] {
@@ -810,7 +811,7 @@ func (consumer *KafkaEventConsumer) Start() {
           if partitionConsumer.HighWaterMarkOffset() - input.Offset <= 1 {
             // Once we're caught up with the high watermark, let the ready
             // channel know
-            readyWg.Done()
+            once.Do(readyWg.Done)
           }
           dl.Step(i)
         }
