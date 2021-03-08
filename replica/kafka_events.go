@@ -874,6 +874,7 @@ func (consumer *KafkaEventConsumer) Start() {
         // by any of them, either there are no messages at all, or there are no
         // messages because the drumline has gotten streteched too far apart in
         // the course of normal operation, and it should be reset.
+        log.Debug("Drumline reset")
       case v := <- readyWaiter():
         // readyWaiter() will wait 1 second if readych is ready to receive ,
         // which will trigger a message to get sent on consumer.ready. This
