@@ -417,7 +417,7 @@ func (cet *chainEventTracker) HandleReadyCE(blockhash common.Hash) (*ChainEvents
   if bh := ce.Block.ParentHash(); !(cet.finished[bh] || cet.oldFinished[bh]) {
     // The parent has not been emitted, save for later.
 
-    log.Debug("Holding until parent is emitted", "finished", cet.finished[bh], "oldFinished", cet.oldFinished[bh], "block", blockhash, "parent", bh, "lastEmitted", cet.lastEmittedBlock)
+    log.Debug("Holding until parent is emitted", "finished", cet.finished[bh], "oldFinished", cet.oldFinished[bh], "block", blockhash, "number", ce.Block.NumberU64(), "parent", bh, "lastEmitted", cet.lastEmittedBlock)
     ph := ce.Block.ParentHash()
     if _, ok := cet.pendingEmits[ph]; !ok {
       cet.pendingEmits[ph] = make(map[common.Hash]struct{})
