@@ -230,6 +230,7 @@ type chainEventTracker struct {
   // if the most recent changes pan out.
   chainEventPartitions map[int32]int64
   blockTime map[common.Hash]time.Time
+  startingBlockNumber uint64
 }
 
 func (cet *chainEventTracker) report() {
@@ -246,6 +247,13 @@ func (cet *chainEventTracker) report() {
     "pendingEmits", len(cet.pendingEmits),
     "pendingHashes", len(cet.pendingHashes),
   )
+}
+
+func (cet *chainEventTracker) currentBlockNumber() uint64 {
+  if ce, ok := cet.chainEvents[cet.lastEmittedBlock]; ok {
+    return ce.Block.NumberU64()
+  }
+  return cet.startingBlockNumber
 }
 
 func (cet *chainEventTracker) setBlockTime(h common.Hash) {
@@ -267,16 +275,14 @@ func (cet *chainEventTracker) HandleMessage(key, value []byte, partition int32, 
     }
     if _, ok := cet.chainEvents[blockhash]; ok || cet.finished[blockhash] || cet.oldFinished[blockhash]  { return nil, nil } // We've already seen this block. Ignore
     cet.setBlockTime(blockhash)
-    if ce, ok := cet.chainEvents[cet.lastEmittedBlock]; ok {
-      if block.NumberU64() + uint64(cet.finishedLimit) < ce.Block.NumberU64() {
-        log.Warn("Old block detected. Ignoring.", "number", block.NumberU64(), "hash", block.Hash())
-        cet.skipped[blockhash] = true
-        delete(cet.receiptCounter, blockhash)
-        delete(cet.logCounter, blockhash)
-        delete(cet.earlyReceipts, blockhash)
-        delete(cet.earlyLogs, blockhash)
-        delete(cet.earlyTd, blockhash)
-      }
+    if block.NumberU64() + uint64(cet.finishedLimit) < cet.currentBlockNumber() {
+      log.Warn("Old block detected. Ignoring.", "number", block.NumberU64(), "hash", block.Hash())
+      cet.skipped[blockhash] = true
+      delete(cet.receiptCounter, blockhash)
+      delete(cet.logCounter, blockhash)
+      delete(cet.earlyReceipts, blockhash)
+      delete(cet.earlyLogs, blockhash)
+      delete(cet.earlyTd, blockhash)
     }
     // cet.finished[block.Hash()] = false // Explicitly setting to false ensures it will be garbage collected if we never see the whole block
     cet.chainEvents[blockhash] = &ChainEvent{
@@ -892,7 +898,7 @@ func (consumer *KafkaEventConsumer) Start() {
 }
 
 
-func NewKafkaEventConsumerFromURLs(brokerURL, topic string, lastEmittedBlock common.Hash, offsets map[int32]int64, rollback int64) (EventConsumer, error) {
+func NewKafkaEventConsumerFromURLs(brokerURL, topic string, lastEmittedBlock common.Hash, offsets map[int32]int64, rollback int64, startingBlockNumber uint64) (EventConsumer, error) {
   brokers, config := cdc.ParseKafkaURL(brokerURL)
   if err := cdc.CreateTopicIfDoesNotExist(brokerURL, topic, -1, nil); err != nil {
     return nil, err
@@ -948,6 +954,7 @@ func NewKafkaEventConsumerFromURLs(brokerURL, topic string, lastEmittedBlock com
       pendingHashes: make(map[common.Hash]struct{}),
       chainEventPartitions: offsets,
       blockTime: make(map[common.Hash]time.Time),
+      startingBlockNumber: startingBlockNumber,
     },
 
     startingOffsets: startingOffsets,
