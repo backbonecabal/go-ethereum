@@ -477,6 +477,7 @@ func (backend *ReplicaBackend) warmAddresses(addresses []common.Address) error {
 
 func (backend *ReplicaBackend) handleBlockUpdates() {
   var lastBlock *types.Block
+  if backend.blockHeads == nil { return }
   for head := range backend.blockHeads {
     headHash := common.BytesToHash(head)
     headBlock := backend.bc.GetBlockByHash(headHash)
