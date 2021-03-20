@@ -219,10 +219,11 @@ func NewReplica(db ethdb.Database, config *eth.Config, stack *node.Node, transac
   if err != nil {
     return nil, err
   }
-  headChan = make(chan []byte, 10)
   if syncShutdown {
     // Don't warm these addresses if syncShutdown is true
     warmAddressFile = ""
+  } else {
+    headChan = make(chan []byte, 10)
   }
   replica := &Replica{db, hc, chainConfig, bc, transactionProducer, transactionConsumer, make(chan bool), consumer.TopicName(), maxOffsetAge, maxBlockAge, headChan, nil, evmConcurrency, warmAddressFile, quit, halted, enableSnapshot}
   maxOffsetCh := make(chan struct{})
