@@ -238,7 +238,9 @@ func NewReplica(db ethdb.Database, config *eth.Config, stack *node.Node, transac
           // consume any more messages, but the shutdown process expects this
           // goroutine to consume from the quit channel.
           <-quit
-          close(headChan)
+          if headChan != nil {
+            close(headChan)
+          }
           return
         }
         head, err := operation.Apply(db)
@@ -250,7 +252,9 @@ func NewReplica(db ethdb.Database, config *eth.Config, stack *node.Node, transac
         }
       case <-quit:
         log.Warn("Operation consumer shutting down")
-        close(headChan)
+        if headChan != nil {
+          close(headChan)
+        }
         return
       }
     }
