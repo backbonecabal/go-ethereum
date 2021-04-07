@@ -765,9 +765,10 @@ func freezerLoad(ctx *cli.Context) error {
 
 func verifyStateTrie(ctx *cli.Context) error {
   stack, _ := makeConfigNode(ctx)
-  bc, db := utils.MakeChain(ctx, stack, false)
+  db := utils.MakeChainDatabase(ctx, stack)
   latestHash := rawdb.ReadHeadBlockHash(db)
-  block := bc.GetBlockByHash(latestHash)
+  latestHeaderNumber := rawdb.ReadHeaderNumber(db, latestHash)
+  block := rawdb.ReadBlock(db, latestHash, *latestHeaderNumber)
 
   tr, err := trie.New(block.Root(), trie.NewDatabase(db))
   if err != nil {
@@ -798,7 +799,6 @@ func verifyStateTrie(ctx *cli.Context) error {
       }
     }
   }
-  bc.Stop()
   db.Close()
   // fmt.Printf("Rolled back chain to block %v\n", blockNumber)
   return nil
