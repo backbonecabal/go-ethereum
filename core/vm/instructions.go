@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
+	"runtime"
 )
 
 func opAdd(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
@@ -569,6 +570,7 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]
 		input        = callContext.memory.GetCopy(int64(offset.Uint64()), int64(size.Uint64()))
 		gas          = callContext.contract.Gas
 	)
+	runtime.Gosched()
 	if interpreter.evm.chainRules.IsEIP150 {
 		gas -= gas / 64
 	}
@@ -611,7 +613,7 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([
 		input        = callContext.memory.GetCopy(int64(offset.Uint64()), int64(size.Uint64()))
 		gas          = callContext.contract.Gas
 	)
-
+	runtime.Gosched()
 	// Apply EIP150
 	gas -= gas / 64
 	callContext.contract.UseGas(gas)
@@ -640,6 +642,7 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([
 }
 
 func opCall(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
+	runtime.Gosched()
 	stack := callContext.stack
 	// Pop gas. The actual gas in interpreter.evm.callGasTemp.
 	// We can use this as a temporary value
@@ -677,6 +680,7 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]by
 }
 
 func opCallCode(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
+	runtime.Gosched()
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	stack := callContext.stack
 	// We use it as a temporary value
@@ -711,6 +715,7 @@ func opCallCode(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) (
 }
 
 func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
+	runtime.Gosched()
 	stack := callContext.stack
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	// We use it as a temporary value
@@ -738,6 +743,7 @@ func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, callContext *callCt
 }
 
 func opStaticCall(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
+	runtime.Gosched()
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	stack := callContext.stack
 	// We use it as a temporary value

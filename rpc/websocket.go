@@ -59,7 +59,7 @@ func (s *Server) WebsocketHandler(allowedOrigins []string) http.Handler {
 			log.Debug("WebSocket upgrade failed", "err", err)
 			return
 		}
-		codec := newWebsocketCodec(conn)
+		codec := newWebsocketCodec(conn, r.Context())
 		s.ServeCodec(codec, 0)
 	})
 }
@@ -196,7 +196,7 @@ func DialWebsocketWithDialer(ctx context.Context, endpoint, origin string, diale
 			}
 			return nil, hErr
 		}
-		return newWebsocketCodec(conn), nil
+		return newWebsocketCodec(conn, ctx), nil
 	})
 }
 
@@ -239,10 +239,10 @@ type websocketCodec struct {
 	pingReset chan struct{}
 }
 
-func newWebsocketCodec(conn *websocket.Conn) ServerCodec {
-	conn.SetReadLimit(wsMessageSizeLimit)
+func newWebsocketCodec(conn *websocket.Conn, ctx context.Context) ServerCodec {
+	conn.SetReadLimit(maxRequestContentLength)
 	wc := &websocketCodec{
-		jsonCodec: NewFuncCodec(conn, conn.WriteJSON, conn.ReadJSON).(*jsonCodec),
+		jsonCodec: NewFuncCodec(conn, conn.WriteJSON, conn.ReadJSON, ctx).(*jsonCodec),
 		conn:      conn,
 		pingReset: make(chan struct{}, 1),
 	}

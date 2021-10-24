@@ -162,7 +162,7 @@ type BlockChain struct {
 	cacheConfig *CacheConfig        // Cache configuration for pruning
 
 	db     ethdb.Database // Low level persistent database to store final content in
-	snaps  *snapshot.Tree // Snapshot tree for fast trie leaf access
+	snaps  snapshot.SnapshotTree // Snapshot tree for fast trie leaf access
 	triegc *prque.Prque   // Priority queue mapping block numbers to tries to gc
 	gcproc time.Duration  // Accumulates canonical block processing for trie dumping
 
@@ -661,7 +661,7 @@ func (bc *BlockChain) CurrentBlock() *types.Block {
 }
 
 // Snapshots returns the blockchain snapshot tree.
-func (bc *BlockChain) Snapshots() *snapshot.Tree {
+func (bc *BlockChain) Snapshots() snapshot.SnapshotTree {
 	return bc.snaps
 }
 

@@ -68,7 +68,7 @@ type StateDB struct {
 	trie         Trie
 	hasher       crypto.KeccakState
 
-	snaps         *snapshot.Tree
+	snaps         snapshot.SnapshotTree
 	snap          snapshot.Snapshot
 	snapDestructs map[common.Hash]struct{}
 	snapAccounts  map[common.Hash][]byte
@@ -120,7 +120,7 @@ type StateDB struct {
 }
 
 // New creates a new state from a given trie.
-func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) {
+func New(root common.Hash, db Database, snaps snapshot.SnapshotTree) (*StateDB, error) {
 	tr, err := db.OpenTrie(root)
 	if err != nil {
 		return nil, err

@@ -194,6 +194,10 @@ type Config struct {
 
 	// AllowUnprotectedTxs allows non EIP-155 protected transactions to be send over RPC.
 	AllowUnprotectedTxs bool `toml:",omitempty"`
+	KafkaLogBroker string `toml:",omitempty"`
+	KafkaLogTopic string `toml:",omitempty"`
+	KafkaTransactionTopic string `toml:",omitempty"`
+	ReplicaSyncShutdown bool `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into

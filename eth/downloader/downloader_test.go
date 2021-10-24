@@ -557,6 +557,7 @@ func TestThrottling66Fast(t *testing.T) { testThrottling(t, 66, FastSync) }
 func testThrottling(t *testing.T, protocol uint, mode SyncMode) {
 	t.Parallel()
 	tester := newTester()
+	defer tester.terminate()
 
 	// Create a long block chain to download and the tester
 	targetBlocks := testChainBase.len() - 1
@@ -614,7 +615,6 @@ func testThrottling(t *testing.T, protocol uint, mode SyncMode) {
 		if cached != blockCacheMaxItems && cached != blockCacheMaxItems-reorgProtHeaderDelay && retrieved+cached+frozen != targetBlocks+1 && retrieved+cached+frozen != targetBlocks+1-reorgProtHeaderDelay {
 			t.Fatalf("block count mismatch: have %v, want %v (owned %v, blocked %v, target %v)", cached, blockCacheMaxItems, retrieved, frozen, targetBlocks+1)
 		}
-
 		// Permit the blocked blocks to import
 		if atomic.LoadUint32(&blocked) > 0 {
 			atomic.StoreUint32(&blocked, uint32(0))
